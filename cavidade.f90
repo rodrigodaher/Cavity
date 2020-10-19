@@ -17,6 +17,7 @@ module global
     integer :: i, j, it, itf, m, pressure_step
     double precision :: dX, dY, dT, tolerance, CFL, nu, Lx, Ly
     double precision, dimension(20,20) :: Erro, Div 
+
 end module global
 
 
@@ -28,7 +29,6 @@ module file
     
     !!!----------Files Parameters---------!!!
     character(len=70) :: fn, command
-    character(len=3)  :: it_str
     integer, parameter :: outunit=400   
 
 end module file
@@ -77,6 +77,7 @@ program cavidade
 
         it = it + 1
         call write_file()
+        print*, it
     end do 
 
     print*, '!-------------------------------!'
@@ -95,24 +96,24 @@ subroutine initial_conditions()
     
     !Initial Parameters!
     it = 0
-    itf = 1000                                                                                        !Number of iterations
+    itf = 100000                                                                                        !Number of iterations
     m  = 20                                                                                           !Dimension of the pressure matrix MxM
     Lx = 1.0d0
     Ly = 1.0d0
-    dX = 0.1                                                                                         !X Cell length 
-    dY = 0.1                                                                                         !Y Cell length
+    dX = Lx/m                                                                                         !X Cell length 
+    dY = Ly/m                                                                                         !Y Cell length
     CFL = 0.025d0                                                                                     !Relation between time and space 
-    mi = 8.891d-4                                                                                     !Fluid viscosity
-    rho = 997.7d0                                                                             !Fluid density  
+    mi = 1.0533d-6                                                                                     !Fluid viscosity
+    rho = 18.0d0                                                                             !Fluid density  
     nu = mi/rho
     dT = 1.0d-3                                                                                       !Time step
     v  = 0.0d0                                                                                        !Inicial velocity in y direction 
-    V_tampa = 20                                                                                      !Plate velocity
+    V_tampa = 100.0d0                                                                                      !Plate velocity
     P  = 0.0d0                                                                                        !Inicial pressure
     u_int = 0.0d0                                                                                     !Intermediate velocity in x direction
     v_int = 0.0d0                                                                                     !Intermediate velocity in y direction
     P_linha = 0.0d0                                                                                   !Matrix of correction of pressure 
-    tolerance = 1.d-10                                                                                !Increment for implicity Gaus-Seidel solutions
+    tolerance = 1.d-8                                                                                !Increment for implicity Gaus-Seidel solutions
     Erro = 0.0d0
     do i = 1, m                                                                                       !Inicial velocity in x direction
         do j = 1, m-1                                
@@ -135,20 +136,20 @@ subroutine boundary_conditions()
     implicit none 
 
     do i = 1, m
-        u(i , 1) = 0.0d0                                                                 !U velocity on the right wall
-        u_int(i , 1) = 0.0d0                                                             !U* velocity on the down wall
-        u(i , m-1) = 0.0d0                                                               !U velocity on the left wall
-        u_int(i , m-1) = 0.0d0                                                           !U* velocity on the down wall
+        u(i , 1) = 0.0d0                                                                 !U velocity on the left wall
+        u_int(i , 1) = 0.0d0                                                             !U* velocity on the left wall
+        u(i , m-1) = 0.0d0                                                               !U velocity on the right wall
+        u_int(i , m-1) = 0.0d0                                                           !U* velocity on the right wall
 
         v(1 , i) = 0.0d0                                                                 !V velocity on the up wall
-        v_int(1 , i) = 0.0d0                                                             !v* velocity on the down wall
+        v_int(1 , i) = 0.0d0                                                             !v* velocity on the up wall
         v(m-1 , i) = 0.0d0                                                               !V velocity on the down wall
         v_int(m-1 , i) = 0.0d0                                                           !v* velocity on the down wall
 
-        P_linha(1 , i) = - P_linha(2, i)                                                 !Pressure on the up wall
-        P_linha(m , i) = - P_linha(m-1, i)                                               !Pressure on the down wall    
-        P_linha(i , 1) = - P_linha(i, 2)                                                 !Pressure on the right wall
-        P_linha(i , m) = - P_linha(i, m-1)                                               !Pressure on the left wall
+        P_linha(1 , i) =  P_linha(2, i)                                                 !Pressure on the up wall
+        P_linha(m , i) =  P_linha(m-1, i)                                               !Pressure on the down wall    
+        P_linha(i , 1) =  P_linha(i, 2)                                                 !Pressure on the left wall
+        P_linha(i , m) =  P_linha(i, m-1)                                               !Pressure on the right wall
     end do 
 
     do i = 2, m-2
@@ -157,12 +158,16 @@ subroutine boundary_conditions()
         u(m, i) = - u(m-1, i)                                                            !U velocity on the down wall
         u_int(m, i) = - u_int(m-1, i)                                                    !U* Velocity on the down wall
 
-        v(i, 1) = - v(i, 2)                                                              !V velocity on the right wall
-        v_int(i, 1) = - v(i, 2)                                                          !V* velocity on the right wall
+        v(i, 1) = - v(i, 2)                                                              !V velocity on the left wall
+        v_int(i, 1) = - v(i, 2)                                                          !V* velocity on the left wall
         v(i, m) = - v(i, m-1)                                                            !V velocity on the right wall
         v_int(i, m) = - v_int(i, m-1)                                                    !V* Velocity on the right wall
     end do 
 
+    P(1 , 1) = 1.0d0
+    P(m , m) = P(m-1 , m-1)
+    P(m , 1) = P(m-1 , 1)
+    P(1 , m) = P(1 , m-1)
 end subroutine boundary_conditions
 
 
@@ -180,12 +185,11 @@ subroutine velocity_prediction()
             A_x = - u(i, j) * (u(i+1, j) - u(i,j))/dX - (v(i, j) + v(i-1, j) + v(i, j+1) + v(i-1, j+1))/(4 * dX) &          !Advective term in the x direction
                 * (u(i, j+1) - u(i, j)) 
 
-            D_x = (u(i+1,j) + u(i-1,j) + u(i,j+1) + u(i,j-1) - 4 * u(i,j)) / (dX**2)                                        !Difusive term in the x direction
+            D_x = (u(i+1, j) + u(i-1, j) + u(i, j+1) + u(i, j-1) - 4 * u(i, j)) / (dX**2)                                   !Difusive term in the x direction
 
             P_x = (P(i, j) - P(i-1, j)) / dX                                                                                !Pressure Gradient in the x direction                                                                              
 
-            u_int(i,j) = u(i, j) + dT * (A_x + nu * D_x  - (1/rho) * P_x)                                                   !U prediction
-      
+            u_int(i,j) = u(i, j) + dT * (A_x + nu * D_x  - (1/rho) * P_x)                                                   !U prediction     
         end do 
     end do
 
@@ -196,15 +200,14 @@ subroutine velocity_prediction()
             A_y = -(u(i, j) + u(i, j-1) + u(i+1, j) + u(i+1, j-1))/(4*dX) * (v(i+1, j) - v(i, j)) &                         !Advective term in the y direction
                 - v(i, j) *(v(i, j+1) - v(i,j))/dY
 
-            D_y = (v(i+1,j) + v(i-1,j) + v(i,j+1) + v(i,j-1) - 4 * v(i,j)) / (dY**2)                                        !Difusive term in the y direction
+            D_y = (v(i+1, j) + v(i-1, j) + v(i, j+1) + v(i, j-1) - 4 * v(i, j)) / (dY**2)                                   !Difusive term in the y direction
 
-            P_y = (P(i,j) - P(i,j-1)) / dY                                                                                  !Pressure Gradient in the y direction
+            P_y = (P(i, j) - P(i, j-1)) / dY                                                                                !Pressure Gradient in the y direction
 
-            v_int(i,j) = v(i,j) + dT * (A_y + nu * D_y - (1/rho) * P_y)                                                     !V prediction                                            
+            v_int(i, j) = v(i, j) + dT * (A_y + nu * D_y - (1/rho) * P_y)                                                   !V prediction   
         end do 
     end do
-
-    call boundary_conditions()
+    call boundary_conditions() 
 
 end subroutine velocity_prediction
 
@@ -233,6 +236,8 @@ subroutine pressure_correction()
             end do 
         end do
 
+       ! P_linha(m/2,m/2)=0
+
         do i = 2, m-1
             do j = 2, m-1
                 P_linha(i, j) = (gama * (u_int(i+1,j) - u_int(i,j) + v_int(i,j+1) - v_int(i,j)) +&
@@ -240,14 +245,17 @@ subroutine pressure_correction()
             end do 
         end do 
 
-        call boundary_conditions()
+        !call boundary_conditions()
 
         do i = 2, m-1
             do j = 2, m-1
                 Erro(i, j) = abs(Erro(i,j) - P_linha(i,j))
             end do 
         end do
+
+
         pressure_step = pressure_step + 1
+        print*, maxval(p_linha), pressure_step
     end do
 
 end subroutine pressure_correction
@@ -310,7 +318,7 @@ subroutine continuity_equation()
         end do 
     end do 
 
-    print*, maxval(Div)                                                                                 !Shows the divergent, is expected a number close to 0
+    !print*, maxval(Div)                                                                                 !Shows the divergent, is expected a number close to 0
 
 end subroutine continuity_equation
 
@@ -324,22 +332,22 @@ subroutine write_file()
     implicit none 
 
     !======Write the file.dat ====!
+    if (mod(it, 1000) == 0) then
+        write(fn,fmt='(i0,a)') it, '.dat'
+        open(unit = outunit, file=fn, form='formatted')
 
-    write(fn,fmt='(i0,a)') it, '.dat'
-    open(unit = outunit, file=fn, form='formatted')
+        !Data write
+        !write(outunit,*) "TITLE = " , '"Cavity_simu"'
+        !write(outunit,*) 'Variables="X","Y","U"'
+        !write(outunit,*) 'Zone I=', Lx ,', J=', Ly ,', F=POINT'
 
-    !Data write
-    !write(outunit,*) "TITLE = " , '"Cavity_simu"'
-    !write(outunit,*) 'Variables="X","Y","U"'
-    !write(outunit,*) 'Zone I=', Lx ,', J=', Ly ,', F=POINT'
-
-    do i = 2, m-1
-        do j = 2, m-2
-            write(outunit, *) j , i, u(i,j)
-        end do 
-    end do                 
-    close(outunit)
-
+        do i = 2, m-2
+            do j = 2, m-1
+                write(outunit, *) j , i, U(i,j)
+            end do 
+        end do                 
+        close(outunit)
+    end if
     !if (mod(it,10) == 0 ) then
     !    command='py plot.py '// fn
     !    call EXECUTE_COMMAND_LINE(command)
