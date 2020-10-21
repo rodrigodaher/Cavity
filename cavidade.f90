@@ -332,7 +332,7 @@ subroutine write_file()
     implicit none 
 
     !======Write the file.dat ====!
-    if (mod(it, 1000) == 0) then
+    if (mod(it, 100) == 0) then
         write(fn,fmt='(i0,a)') it, '.dat'
         open(unit = outunit, file=fn, form='formatted')
 
