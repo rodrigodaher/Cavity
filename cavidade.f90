@@ -45,7 +45,6 @@ program cavidade
     !Start simulation loop 
 
     call initial_conditions()
-   ! call boundary_conditions()
     call write_file()
 
     print*, '!-------------------------------!'
@@ -66,9 +65,9 @@ program cavidade
 
     do while (it < itf)
 
-        !call boundary_conditions()
         call velocity_prediction()
         call pressure_correction()
+        !call boundary_conditions()
         call velocity_correction()
         call boundary_conditions()
         call continuity_equation()
@@ -106,7 +105,7 @@ subroutine initial_conditions()
     mi = 1.0533d-6                                                                                    !Fluid viscosity
     rho = 20.0d0                                                                                      !Fluid density  
     nu = mi/rho
-    dT = 1.0d-4                                                                                       !Time step
+    dT = 1.0d-5                                                                                       !Time step
     v  = 0.0d0                                                                                        !Inicial velocity in y direction 
     V_lid = 1.0d0                                                                                     !Lid velocity
     P  = 1.0d0                                                                                        !Inicial pressure
@@ -151,10 +150,10 @@ subroutine boundary_conditions()
         P_linha(i , 1) =  P_linha(i, 2)                                                  !Pressure on the left wall
         P_linha(i , m) =  P_linha(i, m-1)                                                !Pressure on the right wall
 
-        P(1 , i) =  P(2, i)                                                              !Pressure on the up wall
-        P(m , i) =  P(m-1, i)                                                            !Pressure on the down wall    
-        P(i , 1) =  P(i, 2)                                                              !Pressure on the left wall
-        P(i , m) =  P(i, m-1)                                                            !Pressure on the right wall
+        !P(1 , i) =  P(2, i)                                                              !Pressure on the up wall
+        !P(m , i) =  P(m-1, i)                                                            !Pressure on the down wall    
+        !P(i , 1) =  P(i, 2)                                                              !Pressure on the left wall
+        !P(i , m) =  P(i, m-1)                                                            !Pressure on the right wall
     end do 
 
     do i = 1, m
@@ -199,8 +198,6 @@ subroutine velocity_prediction()
             u_int(i,j) = u(i, j) + dT * (A_x + nu * D_x  - (1/rho) * P_x)                                                   !U prediction  
         end do 
     end do
-
-    call boundary_conditions()
 
     do i = 2, m-2
         do j = 2, m-1
@@ -263,7 +260,7 @@ subroutine pressure_correction()
 
 
         pressure_step = pressure_step + 1
-        print*, maxval(p_linha), pressure_step
+        !print*, maxval(p_linha), pressure_step
     end do
 
 end subroutine pressure_correction
@@ -303,8 +300,8 @@ subroutine pressure_update()
     implicit none
 
     !===== Pressure update =====!
-    do i = 1, m
-        do j = 1, m
+    do i = 2, m-1
+        do j = 2, m-1
             P(i , j) = P(i , j) + P_linha(i , j)                                   !Update the pressure based on the pressure gradient correction on step 2
         end do 
     end do 
@@ -322,7 +319,7 @@ subroutine continuity_equation()
     !===== Check if the continuity equation is OK =====!
     do i = 2, m-2
         do j = 2, m-2
-            Div(i , j) = abs((u(i+1 , j) - u(i , j))/dX + (v(i , j) - v(i , j+1))/dY)                         !Calculates the divergent of the velocity 
+            Div(i , j) = abs((u(i+1 , j) - u(i , j))/dX + (v(i , j+1) - v(i , j))/dY)                         !Calculates the divergent of the velocity 
         end do 
     end do 
 
@@ -349,9 +346,9 @@ subroutine write_file()
         !write(outunit,*) 'Variables="X","Y","U"'
         !write(outunit,*) 'Zone I=', Lx ,', J=', Ly ,', F=POINT'
 
-        do i = 2, m-1
-            do j = 2, m-1
-                write(outunit, *) j , i, P(i , j)
+        do i = 1, m
+            do j = 1, m-1
+                write(outunit, *) j , i, u(i , j)
             end do 
         end do                 
         close(outunit)
